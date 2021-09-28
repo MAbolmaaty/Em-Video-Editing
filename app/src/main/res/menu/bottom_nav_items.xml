@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_video_trim"
+        android:icon="@drawable/ic_video_trim"
+        android:title="@string/trim" />
+
+    <item
+        android:id="@+id/nav_video_merge"
+        android:icon="@drawable/ic_video_merge"
+        android:title="@string/merge" />
+
+    <item
+        android:id="@+id/nav_video_water_mark"
+        android:icon="@drawable/ic_video_water_mark"
+        android:title="@string/water_mark" />
+
+    <item
+        android:id="@+id/nav_about_app"
+        android:icon="@drawable/ic_about_app"
+        android:title="@string/about_app" />
+</menu>

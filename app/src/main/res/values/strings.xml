@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Em Video Editing</string>
+    <string name="trim">Trim</string>
+    <string name="merge">Merge</string>
+    <string name="water_mark">Water Mark</string>
+    <string name="about_app">About App</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="upload">Upload</string>
+</resources>

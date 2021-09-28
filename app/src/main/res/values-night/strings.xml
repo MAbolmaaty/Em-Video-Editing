@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="trim">Trim</string>
+    <string name="merge">Merge</string>
+    <string name="water_mark">Water Mark</string>
+    <string name="about_app">About App</string>
+    <string name="upload">Upload</string>
+</resources>
