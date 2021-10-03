@@ -2,14 +2,18 @@ package com.em.emvideoediting.ui;
 
 import static com.arthenica.mobileffmpeg.Config.RETURN_CODE_SUCCESS;
 
+import android.content.ContentUris;
+import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.storage.StorageManager;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -31,7 +35,11 @@ import com.arthenica.mobileffmpeg.FFmpeg;
 import com.em.emvideoediting.R;
 
 import java.io.File;
-import java.net.URI;
+import java.lang.reflect.Array;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Locale;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -60,17 +68,18 @@ public class TrimFragment extends Fragment {
 
     private String mVideoPath;
     private String mVideoName;
+    private String mDirectory;
 
     private ActivityResultLauncher<String> mGetVideo = registerForActivityResult(
             new ActivityResultContracts.GetContent(), new ActivityResultCallback<Uri>() {
                 @Override
                 public void onActivityResult(Uri result) {
                     Log.d(TAG, "result : " + result.toString());
-                    mVideoPath = getRealPathFromURI(result);
+                    mVideoPath = getPath(getActivity(), result);
                     Log.d(TAG, "mVideoPath : " + mVideoPath);
                     mVideoView.setVideoURI(result);
                     String[] pathSegments = mVideoPath.split("/");
-                    mVideoName = pathSegments[pathSegments.length-1];
+                    mVideoName = pathSegments[pathSegments.length - 1];
                     mVideoView.start();
                     mVideoView.setVisibility(View.VISIBLE);
                     mIcVideoAdd.setVisibility(View.INVISIBLE);
@@ -174,49 +183,57 @@ public class TrimFragment extends Fragment {
         mFFmpeg.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                String directory = createStorageDirectory(mVideoName);
-
+                mDirectory = createStorageDirectory(mVideoName);
+                trim(50, 438, 0,1);
 //                String file =
-//                        new File(directory,"trim" + "%02d" + ".mp4").getAbsolutePath();
-//                final String[] trim = {"-i", mVideoPath,
-//                        "-codec:a", "copy", "-f", "segment", "-segment_time",
-//                        "13", "-codec:v", "copy",
-//                        "-map", "0", file};
-
-                int start = 0;
-                for(int i = 0 ; i < 2 ; i++){
-                    String file =
-                            new File(directory,"trim" + "-" + i + ".mp4").getAbsolutePath();
-
-                    final String[] emTrim = {
-                            "-i", mVideoPath,
-                            "-ss", String.valueOf(start),
-                            "-t", "60",
-                            "-c:v", "libx264",
-                            "-crf", "30",
-                              file};
-
-                    FFmpeg.executeAsync(emTrim, new ExecuteCallback() {
-                        @Override
-                        public void apply(long executionId, int returnCode) {
-                            Log.d(TAG, "start");
-                            if (returnCode == RETURN_CODE_SUCCESS) {
-                                Log.d(TAG, "success");
-                            } else {
-                                Log.d(TAG, "fail : " + returnCode);
-                            }
-                        }
-                    });
-                    start = start + 60;
-                }
-
-
-//                FFmpeg.executeAsync(trim, new ExecuteCallback() {
+//                        new File(mDirectory, "trim" + "-" + "%02d" + ".mp4").getAbsolutePath();
+//
+//                final String[] emTrim = {
+//                        "-i", mVideoPath,
+//                        "-c:v", "libx264",
+//                        "-crf", "22",
+//                        "-map", "0",
+//                        "-segment_time", "50",
+//                        "-g", "50",
+//                        "-sc_threshold", "0",
+//                        "-force_key_frames", "expr:gte(t,n_forced*50)",
+//                        "-f", "segment",
+//                        file};
+//
+//                FFmpeg.executeAsync(emTrim, new ExecuteCallback() {
 //                    @Override
 //                    public void apply(long executionId, int returnCode) {
 //                        Log.d(TAG, "start");
 //                        if (returnCode == RETURN_CODE_SUCCESS) {
 //                            Log.d(TAG, "success");
+//                            File directory = new File(mDirectory);
+//                            File[] files = directory.listFiles();
+//                            if (files != null && files.length > 1) {
+//                                for (int i = 0 ; i < files.length ; i++){
+//                                    String copyFile =
+//                                            new File(mDirectory, "trim" + "-" + "copy - " + i
+//                                                    + ".mp4").getAbsolutePath();
+//                                    final String[] seek = {
+//                                            "-ss", "0",
+//                                            "-i", files[i].getAbsolutePath(),
+//                                            "-c:v", "copy",
+//                                            "-c:a", "copy",
+//                                            copyFile};
+//                                    FFmpeg.executeAsync(seek, new ExecuteCallback() {
+//                                        @Override
+//                                        public void apply(long executionId, int returnCode) {
+//                                            Log.d(TAG, "start");
+//                                            if (returnCode == RETURN_CODE_SUCCESS) {
+//                                                Log.d(TAG, "success");
+//
+//                                            } else {
+//                                                Log.d(TAG, "fail : " + returnCode);
+//                                            }
+//                                        }
+//                                    });
+//
+//                                }
+//                            }
 //                        } else {
 //                            Log.d(TAG, "fail : " + returnCode);
 //                        }
@@ -228,8 +245,50 @@ public class TrimFragment extends Fragment {
         return view;
     }
 
+    private void trim(int secs, int totalSecs, int start, int counter) {
+        if (start >= totalSecs) {
+            File directory = new File(mDirectory);
+            File[] files = directory.listFiles();
+            if (files != null && files.length > 1) {
+                Arrays.sort(files, new Comparator<File>() {
+                    @Override
+                    public int compare(File o1, File o2) {
+                        return o1.getName().compareTo(o2.getName());
+                    }
+                });
+            }
+            return;
+        }
+
+        mDirectory = createStorageDirectory(mVideoName);
+        String name = String.format(Locale.ENGLISH, "trim-%02d", counter);
+        String file =
+                new File(mDirectory, name + ".mp4").getAbsolutePath();
+
+        final String[] trim = {
+                "-ss", String.valueOf(start),
+                "-i", mVideoPath,
+                "-t", String.valueOf(secs),
+                "-c:v", "libx264",
+                "-crf", "23",
+                file};
+
+        FFmpeg.executeAsync(trim, new ExecuteCallback() {
+            @Override
+            public void apply(long executionId, int returnCode) {
+                Log.d(TAG, "start");
+                if (returnCode == RETURN_CODE_SUCCESS) {
+                    Log.d(TAG, "success");
+                    trim(secs, totalSecs, start + secs, counter + 1);
+                } else {
+                    Log.d(TAG, "fail : " + returnCode);
+                }
+            }
+        });
+    }
+
     private String getRealPathFromURI(Uri contentUri) {
-        String[] proj = { MediaStore.Images.Media.DATA };
+        String[] proj = {MediaStore.Images.Media.DATA};
         CursorLoader loader = new CursorLoader(getActivity(), contentUri, proj,
                 null, null, null);
         Cursor cursor = loader.loadInBackground();
@@ -274,14 +333,197 @@ public class TrimFragment extends Fragment {
         return videoPath;
     }
 
-    private String createStorageDirectory(String name){
+    private String createStorageDirectory(String name) {
         File file = new File(Environment.getExternalStorageDirectory(),
                 "EmVideoEditing/" + name + "/");
-        if (file.mkdirs()){
+        if (file.mkdirs()) {
             Log.d(TAG, "File created");
         } else {
             Log.d(TAG, "File not created");
         }
         return file.getAbsolutePath();
+    }
+
+    private String getPath(final Context context, final Uri uri) {
+
+        final boolean isKitKat = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
+
+        // DocumentProvider
+        if (isKitKat && DocumentsContract.isDocumentUri(context, uri)) {
+
+            // ExternalStorageProvider
+
+            if (isExternalStorageDocument(uri)) {
+                final String docId = DocumentsContract.getDocumentId(uri);
+                final String[] split = docId.split(":");
+                final String type = split[0];
+
+                if ("primary".equalsIgnoreCase(type)) {
+                    return Environment.getExternalStorageDirectory() + "/" + split[1];
+                } else {
+                    // Below logic is how External Storage provider build URI for documents
+                    // Based on http://stackoverflow.com/questions/28605278/android-5-sd-card-label and https://gist.github.com/prasad321/9852037
+                    StorageManager mStorageManager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
+
+                    try {
+                        Class<?> storageVolumeClazz = Class.forName("android.os.storage.StorageVolume");
+                        Method getVolumeList = mStorageManager.getClass().getMethod("getVolumeList");
+                        Method getUuid = storageVolumeClazz.getMethod("getUuid");
+                        Method getState = storageVolumeClazz.getMethod("getState");
+                        Method getPath = storageVolumeClazz.getMethod("getPath");
+                        Method isPrimary = storageVolumeClazz.getMethod("isPrimary");
+                        Method isEmulated = storageVolumeClazz.getMethod("isEmulated");
+
+                        Object result = getVolumeList.invoke(mStorageManager);
+
+                        final int length = Array.getLength(result);
+                        for (int i = 0; i < length; i++) {
+                            Object storageVolumeElement = Array.get(result, i);
+                            //String uuid = (String) getUuid.invoke(storageVolumeElement);
+
+                            final boolean mounted = Environment.MEDIA_MOUNTED.equals(getState.invoke(storageVolumeElement))
+                                    || Environment.MEDIA_MOUNTED_READ_ONLY.equals(getState.invoke(storageVolumeElement));
+
+                            //if the media is not mounted, we need not get the volume details
+                            if (!mounted) continue;
+
+                            //Primary storage is already handled.
+                            if ((Boolean) isPrimary.invoke(storageVolumeElement) && (Boolean) isEmulated.invoke(storageVolumeElement))
+                                continue;
+
+                            String uuid = (String) getUuid.invoke(storageVolumeElement);
+
+                            if (uuid != null && uuid.equals(type)) {
+                                String res = getPath.invoke(storageVolumeElement) + "/" + split[1];
+                                return res;
+                            }
+                        }
+                    } catch (Exception ex) {
+                    }
+                }
+            }
+
+
+            // DownloadsProvider
+            else if (isDownloadsDocument(uri)) {
+
+                final String id = DocumentsContract.getDocumentId(uri);
+                if (!TextUtils.isEmpty(id)) {
+                    if (id.startsWith("raw:")) {
+                        return id.replaceFirst("raw:", "");
+                    }
+                }
+                String[] contentUriPrefixesToTry = new String[]{
+                        "content://downloads/public_downloads",
+                        "content://downloads/my_downloads",
+                        "content://downloads/all_downloads"
+                };
+
+                for (String contentUriPrefix : contentUriPrefixesToTry) {
+                    Uri contentUri = ContentUris.withAppendedId(Uri.parse(contentUriPrefix), Long.valueOf(id));
+                    try {
+                        String path = getDataColumn(context, contentUri, null, null);
+                        if (path != null) {
+                            return path;
+                        }
+                    } catch (Exception e) {
+                    }
+                }
+
+                return null;
+            }
+            // MediaProvider
+            else if (isMediaDocument(uri)) {
+                final String docId = DocumentsContract.getDocumentId(uri);
+                final String[] split = docId.split(":");
+                final String type = split[0];
+
+                Uri contentUri = null;
+                if ("image".equals(type)) {
+                    contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                } else if ("video".equals(type)) {
+                    contentUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                } else if ("audio".equals(type)) {
+                    contentUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+                }
+
+                final String selection = "_id=?";
+                final String[] selectionArgs = new String[]{
+                        split[1]
+                };
+
+                return getDataColumn(context, contentUri, selection, selectionArgs);
+            }
+        }
+        // MediaStore (and general)
+        else if ("content".equalsIgnoreCase(uri.getScheme())) {
+
+//            // Return the remote address
+            if (isGooglePhotosUri(uri))
+                return uri.getLastPathSegment();
+
+            return getDataColumn(context, uri, null, null);
+        }
+        // File
+        else if ("file".equalsIgnoreCase(uri.getScheme())) {
+            return uri.getPath();
+        }
+
+        return null;
+    }
+
+    public static boolean isGooglePhotosUri(Uri uri) {
+        return "com.google.android.apps.photos.content".equals(uri.getAuthority());
+    }
+
+    /**
+     * Get the value of the data column for this Uri.
+     */
+    private String getDataColumn(Context context, Uri uri, String selection,
+                                 String[] selectionArgs) {
+
+        Cursor cursor = null;
+        final String column = "_data";
+        final String[] projection = {
+                column
+        };
+
+        try {
+            cursor = context.getContentResolver().query(uri, projection, selection, selectionArgs,
+                    null);
+            if (cursor != null && cursor.moveToFirst()) {
+                final int column_index = cursor.getColumnIndexOrThrow(column);
+                return cursor.getString(column_index);
+            }
+        } finally {
+            if (cursor != null)
+                cursor.close();
+        }
+        return null;
+    }
+
+
+    /**
+     * @param uri The Uri to check.
+     * @return Whether the Uri authority is ExternalStorageProvider.
+     */
+    private boolean isExternalStorageDocument(Uri uri) {
+        return "com.android.externalstorage.documents".equals(uri.getAuthority());
+    }
+
+    /**
+     * @param uri The Uri to check.
+     * @return Whether the Uri authority is DownloadsProvider.
+     */
+    private boolean isDownloadsDocument(Uri uri) {
+        return "com.android.providers.downloads.documents".equals(uri.getAuthority());
+    }
+
+    /**
+     * @param uri The Uri to check.
+     * @return Whether the Uri authority is MediaProvider.
+     */
+    private boolean isMediaDocument(Uri uri) {
+        return "com.android.providers.media.documents".equals(uri.getAuthority());
     }
 }
